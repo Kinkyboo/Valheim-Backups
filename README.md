@@ -1,6 +1,6 @@
 # Valheim backups
 
-Backups Valheim online from `\AppData\LocalLow\IronGate\Valheim\characters` and `\AppData\LocalLow\IronGate\Valheim\worlds`
+Backups Valheim local saves from `\AppData\LocalLow\IronGate\Valheim\characters_local` and `\AppData\LocalLow\IronGate\Valheim\worlds_local`
 
 Default Backup directory
 
