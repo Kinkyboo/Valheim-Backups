@@ -77,7 +77,7 @@ internal class Program
 			item.CopyTo($"{characters.FullName}/{item.Name}");
 		}
 
-		foreach (var item in valheimCharacters.GetFiles())
+		foreach (var item in valheimWorlds.GetFiles())
 		{
 			item.CopyTo($"{worlds.FullName}/{item.Name}");
 		}
