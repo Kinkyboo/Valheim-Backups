@@ -4,7 +4,8 @@ using System.Text.Json;
 internal class Program
 {
 	private static DateTime lastBackup = DateTime.Now;
-	private static string gameDir = $"{Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}/../LocalLow/IronGate/Valheim/";
+	private static string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+	private static string gameDir = $"{userFolder}\\AppData\\LocalLow\\IronGate\\Valheim\\";
 	private static DirectoryInfo valheimWorlds = new DirectoryInfo($"{gameDir}/worlds_local");
 	private static DirectoryInfo valheimCharacters = new DirectoryInfo($"{gameDir}/characters_local");
 	private static DirectoryInfo backupDir = new DirectoryInfo($"{Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)}/valheim_backups");
@@ -15,6 +16,12 @@ internal class Program
 		if (backupDir.Exists == false)
 		{
 			backupDir.Create();
+		}
+
+		var shortcut = new FileInfo($"{backupDir}/Valheim.lnk");
+		if(shortcut.Exists == false)
+		{
+			ShortcutCreator.CreateFolderShortcut(gameDir, $"{backupDir}/Valheim.lnk", "Valheim");
 		}
 
 		config = GetConfig();
