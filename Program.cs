@@ -3,13 +3,15 @@ using System.Text.Json;
 
 internal class Program
 {
-	private static DateTime lastBackup = DateTime.Now;
 	private static string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 	private static string gameDir = $"{userFolder}\\AppData\\LocalLow\\IronGate\\Valheim\\";
 	private static DirectoryInfo valheimWorlds = new DirectoryInfo($"{gameDir}/worlds_local");
 	private static DirectoryInfo valheimCharacters = new DirectoryInfo($"{gameDir}/characters_local");
 	private static DirectoryInfo backupDir = new DirectoryInfo($"{Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)}/valheim_backups");
 	private static Config config;
+
+	private static Dictionary<string, DateTime> WorldFilesInventory = new Dictionary<string, DateTime>();
+	private static Dictionary<string, DateTime> CharacterFilesInventory = new Dictionary<string, DateTime>();
 
 	private static void Main(string[] args)
 	{
@@ -45,7 +47,9 @@ internal class Program
 		System.Console.WriteLine("Press ctrl+c to terminate");
 		bool running = false;
 
+		//Perform backup on startup
 		Backup();
+		InventorySaveFiles();
 
 		while (true)
 		{
@@ -57,56 +61,110 @@ internal class Program
 			}
 			else
 			{
-				lastBackup = DateTime.Now;
 				running = false;
 			}
 
-			var delta = DateTime.Now - lastBackup;
-			if (delta.Minutes >= config.BackupInterval)
+			if(InventorySaveFiles())
 			{
+				System.Console.WriteLine("File change detected");
+				System.Threading.Thread.Sleep(10000); //Give the system time to save changes
 				Backup();
+				//Do one more inventory after copy to avoid double backups
+				InventorySaveFiles();
 			}
-			System.Threading.Thread.Sleep(10000);
+
+			System.Threading.Thread.Sleep(5000);
 		}
+	}
+
+	private static bool InventorySaveFiles()
+	{
+		bool changeDetected = false;
+
+		List<FileInfo> worldFiles = valheimWorlds.GetFiles()
+			.Where(f => f.Name.Contains("_backup_auto-") == false).ToList();
+
+		List<FileInfo> characterFiles = valheimCharacters.GetFiles()
+			.Where(f => f.Name.Contains("_backup_auto-") == false).ToList();
+
+		bool check1 = CompareInventory(worldFiles, WorldFilesInventory);
+		bool check2 = CompareInventory(characterFiles, CharacterFilesInventory);
+
+		return (check1 || check2);
+	}
+
+	private static bool CompareInventory(List<FileInfo> newFiles, Dictionary<string, DateTime> inventory)
+	{
+		bool changeDetected = false;
+
+		foreach(var file in newFiles)
+		{
+			if(inventory.ContainsKey(file.Name))
+			{
+				var oldFile = inventory[file.Name];
+				if(oldFile < file.LastWriteTime)
+				{
+					changeDetected = true;
+				}
+			}
+			else
+			{
+				changeDetected = true;
+				inventory.Add(file.Name, file.LastWriteTime);
+			}
+		}
+
+		//Reset inventory
+		inventory.Clear();
+		foreach(var file in newFiles)
+		{
+			inventory.Add(file.Name, file.LastWriteTime);
+		}
+
+		return changeDetected;
 	}
 
 	private static void Backup()
 	{
 		System.Console.WriteLine("Backing up");
-		lastBackup = DateTime.Now;
 
-		var newDir = backupDir.CreateSubdirectory($"{lastBackup.Ticks}");
+		var now = DateTime.Now;
+		var newDir = backupDir.CreateSubdirectory(now.ToString("yyyy-MM-dd_HH_mm_ss"));
 		var characters = newDir.CreateSubdirectory("characters_local");
 		var worlds = newDir.CreateSubdirectory("worlds_local");
 
-		foreach (var item in valheimCharacters.GetFiles())
-		{
-			item.CopyTo($"{characters.FullName}/{item.Name}");
-		}
+		BackupDirectory(valheimCharacters, characters);
+		BackupDirectory(valheimWorlds, worlds);
 
-		foreach (var item in valheimWorlds.GetFiles())
-		{
-			item.CopyTo($"{worlds.FullName}/{item.Name}");
-		}
-
-		System.Console.WriteLine($"Backup {newDir.Name} created");
+		System.Console.WriteLine($"Backup {newDir.Name} created @ {now.ToString("yyyy-MM-dd HH:mm:ss")}");
 
 		//Remove oldest
 		var backups = backupDir.GetDirectories();
 		if (backups.Length > config.BackupCount)
 		{
-			var ticks = new List<long>();
-			foreach (var dir in backups)
+			var oldest = backups.OrderBy(d => d.CreationTime).First();
+
+			oldest.Delete(true);
+			System.Console.WriteLine($"Deleted oldest backup {oldest.Name}");
+		}
+	}
+
+	private static void BackupDirectory(DirectoryInfo sourceDir, DirectoryInfo targetDir)
+	{
+		foreach (var item in sourceDir.GetFiles())
+		{
+			while(true)
 			{
-				var asLong = long.Parse(dir.Name);
-				ticks.Add(asLong);
+				try
+				{
+					item.CopyTo($"{targetDir.FullName}/{item.Name}");
+					break; // File could b copied
+				}
+				catch(Exception e)
+				{
+					
+				}
 			}
-
-			var oldest = ticks.Order().First();
-			var oldDir = backups.First(d => d.Name == oldest.ToString());
-
-			oldDir.Delete(true);
-			System.Console.WriteLine($"Deleted oldest backup {oldDir.Name}");
 		}
 	}
 
